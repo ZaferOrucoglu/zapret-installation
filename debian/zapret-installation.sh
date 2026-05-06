@@ -10,12 +10,27 @@ set -e
 # Checks sudo
 sudo -v || { echo "sudo privileges are required"; exit 1; }
 
+# Cheks if curl is installed
+if ! command -v curl >/dev/null; then
+    echo "curl not found, installing..."
+    sudo apt install curl -y || { echo "curl could not be installed"; exit 1; }
+fi
+
 # Checks if zapret and dnscrypt are already installed
 
 if [ -d "/opt/zapret" ]; then
     echo "zapret is already installed."
 else
     echo "zapret is not installed. Installing..."
+    ZAPRET_VER=$(curl -fsSL https://api.github.com/repos/bol-van/zapret/releases/latest \
+      | awk -F'"' '/"tag_name"/ {print $4}')
+    [ -n "$ZAPRET_VER" ] || { echo "Failed to determine zapret version"; exit 1; }
+
+    curl -fL "https://github.com/bol-van/zapret/releases/download/${ZAPRET_VER}/zapret-${ZAPRET_VER}.tar.gz" \
+      -o /tmp/zapret.tar.gz
+
+    tar -xzf /tmp/zapret.tar.gz -C /tmp/
+    cd /tmp/zapret-${ZAPRET_VER}
     printf "Y\n\n\n\n\n\nY\n\n\n\n\n" | sudo ./install_easy.sh
 fi
 
@@ -29,12 +44,6 @@ fi
 # Checks does chattr exist
 command -v chattr >/dev/null || { echo "chattr needed"; exit 1; }
 
-# Cheks if curl is installed
-if ! command -v curl >/dev/null; then
-    echo "curl not found, installing..."
-    sudo apt install curl -y || { echo "curl could not be installed"; exit 1; }
-fi
-
 # Creates folder for zapret and dnscrypt's config files.
 
 mkdir -p "$CONFIG_PATH"
@@ -47,13 +56,13 @@ GITHUB_RAW="https://raw.githubusercontent.com/ZaferOrucoglu/zapret-installation/
 if [ -f "$SCRIPT_DIR/config" ]; then
     cp "$SCRIPT_DIR/config" "$CONFIG_PATH/"
 else
-    curl -f "$GITHUB_RAW/config" -o "$CONFIG_PATH/config"
+    curl -fL "$GITHUB_RAW/config" -o "$CONFIG_PATH/config"
 fi
 
 if [ -f "$SCRIPT_DIR/dnscrypt-proxy.toml" ]; then
     cp "$SCRIPT_DIR/dnscrypt-proxy.toml" "$CONFIG_PATH/"
 else
-    curl -f "$GITHUB_RAW/dnscrypt-proxy.toml" -o "$CONFIG_PATH/dnscrypt-proxy.toml"
+    curl -fL "$GITHUB_RAW/dnscrypt-proxy.toml" -o "$CONFIG_PATH/dnscrypt-proxy.toml"
 fi
 
 # Copies dnscrypt-proxy and zapret configuration files
@@ -125,9 +134,9 @@ sudo systemctl enable --now zapret
 while true; do
     read -p "Do you want to keep config files on $CONFIG_PATH (false by default, type yes/y or no/n)" remove
     if [[ "$remove" == "n" || "$remove" == "no" ]]; then
+        rm -rf "$CONFIG_PATH"
         break
     elif [[ "$remove" == "y" || "$remove" == "yes" ]]; then
-        rm -rf "$CONFIG_PATH"
         break
     else
         echo "Invalid input. Please type 'y/yes' or 'n/no'"

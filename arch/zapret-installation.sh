@@ -10,6 +10,12 @@ set -e
 # Checks sudo
 sudo -v || { echo "sudo privileges are required"; exit 1; }
 
+# Checks if curl is installed
+if ! command -v curl >/dev/null; then
+    echo "curl not found, installing..."
+    yay -S --noconfirm curl || { echo "curl could not be installed"; exit 1; }
+fi
+
 # Checks does yay exist
 command -v yay >/dev/null || { echo "yay needed"; exit 1; }
 
@@ -32,12 +38,6 @@ fi
 # Checks does chattr exist
 command -v chattr >/dev/null || { echo "chattr needed"; exit 1; }
 
-# Cheks if curl is installed
-if ! command -v curl >/dev/null; then
-    echo "curl not found, installing..."
-    yay -S --noconfirm curl || { echo "curl could not be installed"; exit 1; }
-fi
-
 # Creates folder for zapret and dnscrypt's config files.
 
 mkdir -p "$CONFIG_PATH"
@@ -50,13 +50,13 @@ GITHUB_RAW="https://raw.githubusercontent.com/ZaferOrucoglu/zapret-installation/
 if [ -f "$SCRIPT_DIR/config" ]; then
     cp "$SCRIPT_DIR/config" "$CONFIG_PATH/"
 else
-    curl -f "$GITHUB_RAW/config" -o "$CONFIG_PATH/config"
+    curl -fL "$GITHUB_RAW/config" -o "$CONFIG_PATH/config"
 fi
 
 if [ -f "$SCRIPT_DIR/dnscrypt-proxy.toml" ]; then
     cp "$SCRIPT_DIR/dnscrypt-proxy.toml" "$CONFIG_PATH/"
 else
-    curl -f "$GITHUB_RAW/dnscrypt-proxy.toml" -o "$CONFIG_PATH/dnscrypt-proxy.toml"
+    curl -fL "$GITHUB_RAW/dnscrypt-proxy.toml" -o "$CONFIG_PATH/dnscrypt-proxy.toml"
 fi
 
 # Copies dnscrypt-proxy and zapret configuration files
@@ -128,9 +128,9 @@ sudo systemctl enable --now zapret
 while true; do
     read -p "Do you want to keep config files on $CONFIG_PATH (false by default, type yes/y or no/n)" remove
     if [[ "$remove" == "n" || "$remove" == "no" ]]; then
+        rm -rf "$CONFIG_PATH"
         break
     elif [[ "$remove" == "y" || "$remove" == "yes" ]]; then
-        rm -rf "$CONFIG_PATH"
         break
     else
         echo "Invalid input. Please type 'y/yes' or 'n/no'"
