@@ -1,6 +1,6 @@
 # zapret-installation
 
-A simple installer script for **Zapret** and **DNSCrypt-Proxy** on **Arch-based Linux**, **Debian-based Linux**, and **Fedora Linux**.
+A simple installer script for **Zapret** and **DNSCrypt-Proxy** on **Arch-based Linux**, **Debian-based Linux (NOT TESTED)**, and **Fedora Linux**.
 
 ## What this project does
 
