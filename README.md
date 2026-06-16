@@ -54,7 +54,6 @@ It automates common setup steps so you don't need to do everything manually.
 - `sudo` privileges
 - Internet access
 - NetworkManager
-- `chattr` (usually available via `e2fsprogs`)
 
 ### Fedora
 
