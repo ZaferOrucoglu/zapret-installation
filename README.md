@@ -155,7 +155,7 @@ echo "example.com" | sudo tee -a /etc/zapret/ipset/zapret-hosts-user-exclude.txt
 sudo systemctl restart zapret
 ```
 
-### Make `/etc/resolv.conf` editable again (Arch / Debian only)
+### Make `/etc/resolv.conf` editable again (Arch Linux only)
 
 ```bash
 sudo chattr -i /etc/resolv.conf
@@ -167,7 +167,7 @@ If needed, protect it again:
 sudo chattr +i /etc/resolv.conf
 ```
 
-> This step is only relevant for Arch and Debian. Fedora intentionally does not use `chattr` due to SELinux.
+> This step is only relevant for Arch.
 
 ## Troubleshooting
 
@@ -225,7 +225,7 @@ sudo setenforce permissive
 
 ## Security note
 
-This script changes system DNS settings and locks `/etc/resolv.conf` on Arch and Debian.
+This script changes system DNS settings and locks `/etc/resolv.conf` on Arch.
 Review the script and config files before running.
 Use DPI bypass tools only where legal.
 
