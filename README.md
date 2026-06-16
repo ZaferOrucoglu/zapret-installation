@@ -31,7 +31,7 @@ It automates common setup steps so you don't need to do everything manually.
 - Enables and restarts `dnscrypt-proxy`
 - Sets NetworkManager DNS mode to `dns=none`
 - Writes `nameserver 127.0.0.1` to `/etc/resolv.conf`
-- Protects `/etc/resolv.conf` with `chattr +i` (Arch and Debian)
+- Protects `/etc/resolv.conf` with `chattr +i` (on Arch Linux)
 - Lets you add domains to Zapret exclude list interactively
 - Enables Zapret service
 - Optionally removes temporary config folder: `$HOME/zapretconfigs`
