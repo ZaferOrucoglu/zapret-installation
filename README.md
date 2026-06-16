@@ -21,7 +21,7 @@ It automates common setup steps so you don't need to do everything manually.
 ## What the script handles
 
 - Checks `sudo` access
-- Verifies required tools (`yay` on Arch, `chattr` on Arch/Debian)
+- Verifies required tools (`yay` on Arch, `chattr` on Arch)
 - Installs `curl` if missing
 - Installs `zapret` and `dnscrypt-proxy` if not installed
 - Uses local config files when available
