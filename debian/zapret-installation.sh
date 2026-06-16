@@ -88,9 +88,9 @@ sudo install -d -m 755 /etc/NetworkManager/conf.d
 printf "[main]\ndns=none\n" | sudo tee /etc/NetworkManager/conf.d/dns.conf >/dev/null
 echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf >/dev/null
 
+sudo setcap cap_net_bind_service=+ep /usr/sbin/dnscrypt-proxy
 sudo systemctl restart dnscrypt-proxy
 sudo systemctl restart NetworkManager
-sudo setcap cap_net_bind_service=+ep /usr/sbin/dnscrypt-proxy
 
 echo "the file /etc/resolv.conf will be protected against NetworkManager!"
 echo "if you want to make /etc/resolv.conf writable again, run:"
