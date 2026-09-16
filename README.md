@@ -1,6 +1,6 @@
 # zapret-installation
 
-A simple installer script for **Zapret** and **DNSCrypt-Proxy** on **Arch-based Linux (Tested on CachyOS, EndeavourOS, Arch Linux)**, **Debian-based Linux (Tested on PikaOS)**, and **Fedora Linux (Tested on Fedora Linux)**.
+A simple installer script for **Zapret** and **DNSCrypt-Proxy** on **Arch-based Linux (Tested on CachyOS, EndeavourOS, Arch Linux)**, **Debian-based Linux (Tested on PikaOS)**, **Fedora Linux (Tested on Fedora Linux)**, and **Bazzite OS**.
 
 ## What this project does
 
@@ -17,13 +17,15 @@ It automates common setup steps so you don't need to do everything manually.
 - Arch-based distros (Manjaro, EndeavourOS, etc.)
 - Debian / Debian-based distros (Ubuntu, Linux Mint, etc.)
 - Fedora Linux
+- Bazzite OS
 
 ## What the script handles
 
 - Checks `sudo` access
 - Verifies required tools (`yay` on Arch, `chattr` on Arch)
 - Installs `curl` if missing
-- Installs `zapret` and `dnscrypt-proxy` if not installed
+- Installs `zapret` and `dnscrypt-proxy` if not installed (`rpm-ostree` layering on Bazzite, requires reboot)
+- Enables Terra repo on Bazzite and Fedora (ships disabled, script enables `terra.repo`)
 - Uses local config files when available
 - Otherwise downloads config files from GitHub raw URLs
 - Copies config files to system directories
@@ -64,6 +66,15 @@ It automates common setup steps so you don't need to do everything manually.
 
 > Fedora uses SELinux, so `chattr +i` is intentionally not applied to `/etc/resolv.conf` to avoid conflicts.
 
+### Bazzite
+
+- Bazzite OS
+- `sudo` privileges
+- Internet access
+- NetworkManager
+
+> Bazzite ships Terra disabled. The script enables `/etc/yum.repos.d/terra.repo` and layers packages via `rpm-ostree`, which requires a reboot. Re-run the script after reboot to finish configuration. Like Fedora, `chattr +i` is not used.
+
 ## Installation
 
 1. Clone the repository:
@@ -93,6 +104,14 @@ chmod +x fedora/zapret-installation.sh
 ./fedora/zapret-installation.sh
 ```
 
+**Bazzite:**
+```bash
+chmod +x bazzite/zapret-installation.sh
+./bazzite/zapret-installation.sh
+```
+
+> On Bazzite the script layers packages with `rpm-ostree` and exits. Reboot (`systemctl reboot`), then run the script again to apply configs.
+
 3. Follow prompts to:
    - Continue installation flow
    - Add domains to Zapret exclude list (optional)
@@ -121,6 +140,13 @@ chmod +x fedora/zapret-installation.sh
 - DNSCrypt config target: `/etc/dnscrypt-proxy/dnscrypt-proxy.toml`
 - Zapret exclude list: `/usr/share/zapret/ipset/zapret-hosts-user-exclude.txt`
 
+### Bazzite
+
+- Script: `bazzite/zapret-installation.sh`
+- Zapret config target: `/etc/zapret/config`
+- DNSCrypt config target: `/etc/dnscrypt-proxy/dnscrypt-proxy.toml`
+- Zapret exclude list: `/usr/share/zapret/ipset/zapret-hosts-user-exclude.txt`
+
 ### All distributions
 
 - Temporary config dir: `$HOME/zapretconfigs`
@@ -135,7 +161,7 @@ sudo nano /etc/dnscrypt-proxy/dnscrypt-proxy.toml
 sudo systemctl restart dnscrypt-proxy
 ```
 
-**Fedora:**
+**Fedora / Bazzite:**
 ```bash
 sudo nano /etc/dnscrypt-proxy/dnscrypt-proxy.toml
 sudo systemctl restart dnscrypt-proxy
@@ -149,9 +175,9 @@ echo "example.com" | sudo tee -a /opt/zapret/ipset/zapret-hosts-user-exclude.txt
 sudo systemctl restart zapret
 ```
 
-**Fedora:**
+**Fedora / Bazzite:**
 ```bash
-echo "example.com" | sudo tee -a /etc/zapret/ipset/zapret-hosts-user-exclude.txt
+echo "example.com" | sudo tee -a /usr/share/zapret/ipset/zapret-hosts-user-exclude.txt
 sudo systemctl restart zapret
 ```
 
@@ -213,7 +239,23 @@ If it is disabled, enable it manually:
 sudo dnf install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' terra-release
 ```
 
-### SELinux on Fedora
+### Bazzite: terra repository issues
+
+Bazzite ships Terra disabled. The script enables `/etc/yum.repos.d/terra.repo` automatically. To check manually:
+
+```bash
+grep "^enabled" /etc/yum.repos.d/terra.repo
+```
+
+To enable manually:
+
+```bash
+sudo sed -i 's/^enabled=0/enabled=1/' /etc/yum.repos.d/terra.repo
+```
+
+Packages are layered via `rpm-ostree`, so a reboot is required after install. Re-run the script after `systemctl reboot`.
+
+### SELinux on Fedora / Bazzite
 
 If you experience DNS issues and SELinux is enforcing:
 
@@ -242,6 +284,10 @@ zapret-installation/
 │   ├── config
 │   └── dnscrypt-proxy.toml
 ├── fedora/
+│   ├── zapret-installation.sh
+│   ├── config
+│   └── dnscrypt-proxy.toml
+├── bazzite/
 │   ├── zapret-installation.sh
 │   ├── config
 │   └── dnscrypt-proxy.toml
