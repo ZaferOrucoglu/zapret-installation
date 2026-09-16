@@ -13,48 +13,46 @@ sudo -v || { echo "sudo privileges are required"; exit 1; }
 # Checks if curl is installed
 if ! command -v curl >/dev/null; then
     echo "curl not found, installing..."
-    ujust brew install curl || { echo "curl could not be installed"; exit 1; }
+    brew install curl || { echo "curl could not be installed"; exit 1; }
 fi
 
-# Checks if zapret and dnscrypt are already installed
+# Checks if zapret and dnscrypt are already installed (rpm-ostree)
+TERRA_REPO="/etc/yum.repos.d/terra.repo"
 
-if [ -d "/opt/zapret" ]; then
-    echo "zapret is already installed."
-else
-    echo "zapret is not installed. Installing..."
-    ZAPRET_VER=$(curl -fsSL https://api.github.com/repos/bol-van/zapret/releases/latest \
-      | awk -F'"' '/"tag_name"/ {print $4}')
-    [ -n "$ZAPRET_VER" ] || { echo "Failed to determine zapret version"; exit 1; }
-
-    curl -fL "https://github.com/bol-van/zapret/releases/download/${ZAPRET_VER}/zapret-${ZAPRET_VER}.tar.gz" \
-      -o /tmp/zapret.tar.gz
-
-    tar -xzf /tmp/zapret.tar.gz -C /tmp/
-    cd /tmp/zapret-${ZAPRET_VER}
-    printf "Y\n\n\n\n\n\nY\n\n\n\n\n" | sudo ./install_easy.sh
+if [ ! -f "$TERRA_REPO" ]; then
+    echo "terra.repo indiriliyor..."
+    curl -fsSL "https://raw.githubusercontent.com/terrapkg/packages/f$(rpm --eval '%{fedora}')/anda/terra/release/terra.repo" \
+        | sudo tee "$TERRA_REPO" > /dev/null
 fi
 
-if [ -d "/opt/dnscrypt-proxy" ]; then
-    echo "dnscrypt-proxy is already installed."
-else
-    echo "dnscrypt-proxy is not installed. Installing..."
-    DNSCRYPT_VER=$(curl -fsSL https://api.github.com/repos/DNSCrypt/dnscrypt-proxy/releases/latest \
-      | awk -F'"' '/"tag_name"/ {print $4}')
-      [ -n "$DNSCRYPT_VER" ] || { echo "Failed to determine dnscypryt-proxy version"; exit 1;}
-    
-    curl -fL "https://github.com/DNSCrypt/dnscrypt-proxy/releases/download/${DNSCRYPT_VER}/dnscrypt-proxy-linux_x86_64-${DNSCRYPT_VER}.tar.gz" \
-     -o /tmp/dnscrypt-proxy.tar.gz
-    
-    tar -xzvf /tmp/dnscrypt-proxy.tar.gz -C /tmp/
-    sudo cp -r /tmp/linux-x86_64 /opt/dnscrypt-proxy
-    cd /opt/dnscrypt-proxy/
-    sudo cp example-dnscrypt-proxy.toml dnscrypt-proxy.toml
-    sudo ./dnscrypt-proxy -service install
-    sudo ./dnscrypt-proxy -service start
+if grep -q "^enabled=0" "$TERRA_REPO"; then
+    echo "Terra etkinleştiriliyor..."
+    sudo sed -i 's/^enabled=0/enabled=1/' "$TERRA_REPO"
 fi
 
-# Checks does chattr exist
-command -v chattr >/dev/null || { echo "chattr needed"; exit 1; }
+NEED_REBOOT=0
+MISSING=()
+for pkg in zapret dnscrypt-proxy; do
+    if rpm -q "$pkg" &>/dev/null; then
+        echo "$pkg kurulu."
+    elif rpm-ostree status | grep -qw "$pkg"; then
+        echo "$pkg pending (reboot bekliyor)."
+        NEED_REBOOT=1
+    else
+        MISSING+=("$pkg")
+    fi
+done
+
+if [ ${#MISSING[@]} -gt 0 ]; then
+    echo "Layer'lanıyor: ${MISSING[*]}"
+    sudo rpm-ostree install "${MISSING[@]}"
+    NEED_REBOOT=1
+fi
+
+if [ "$NEED_REBOOT" -eq 1 ]; then
+    echo "Reboot atıp scripti tekrar çalıştır: systemctl reboot"
+    exit 0
+fi
 
 # Creates folder for zapret and dnscrypt's config files.
 
@@ -78,8 +76,8 @@ else
 fi
 
 # Copies dnscrypt-proxy and zapret configuration files
-sudo cp "$CONFIG_PATH/dnscrypt-proxy.toml" /opt/dnscrypt-proxy/
-sudo cp "$CONFIG_PATH/config" /opt/zapret/
+sudo cp "$CONFIG_PATH/dnscrypt-proxy.toml" /etc/dnscrypt-proxy/
+sudo cp "$CONFIG_PATH/config" /etc/zapret/
 
 # Disable systemd-resolved units only if they exist (set -e safe) and enable dnscrypt-proxy
 for unit in \
@@ -96,18 +94,13 @@ done
 sudo systemctl enable --now dnscrypt-proxy
 
 # Setting up dnscrypt-proxy as a DNS resolver
-sudo chattr -i /etc/resolv.conf 2>/dev/null || true
+sudo rm -f /etc/resolv.conf
 sudo install -d -m 755 /etc/NetworkManager/conf.d
 printf "[main]\ndns=none\n" | sudo tee /etc/NetworkManager/conf.d/dns.conf >/dev/null
 echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf >/dev/null
-sudo chattr +i /etc/resolv.conf # protects resolv.conf against NetworkManager
 
 sudo systemctl restart dnscrypt-proxy
 sudo systemctl restart NetworkManager
-
-echo "the file /etc/resolv.conf will be protected against NetworkManager!"
-echo "if you want to make /etc/resolv.conf writable again, run:"
-echo "sudo chattr -i /etc/resolv.conf"
 
 # Setting the blacklist of zapret and enable it
 echo "Do you want to add websites to the Zapret exclude list?"
@@ -116,7 +109,7 @@ while true; do
     read -p "Enter 'y/yes' or 'n/no': " answer
     if [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]]; then
         # Run initial setup once
-        sudo bash /opt/zapret/ipset/get_exclude.sh
+        sudo bash /usr/share/zapret/ipset/get_exclude.sh
 
         # Let user add websites until they type c or cancel
         while true; do
@@ -128,7 +121,7 @@ while true; do
                 echo "Empty input. Please enter a website or 'c'/'cancel' to finish."
                 continue
             else
-                echo "$website" | sudo tee -a /opt/zapret/ipset/zapret-hosts-user-exclude.txt > /dev/null
+                echo "$website" | sudo tee -a /usr/share/zapret/ipset/zapret-hosts-user-exclude.txt > /dev/null
                 echo "Added!"
             fi
         done
