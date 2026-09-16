@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 # Defines configs' path
 
@@ -13,11 +13,8 @@ sudo -v || { echo "sudo privileges are required"; exit 1; }
 # Checks if curl is installed
 if ! command -v curl >/dev/null; then
     echo "curl not found, installing..."
-    yay -S --noconfirm curl || { echo "curl could not be installed"; exit 1; }
+    ujust brew install curl || { echo "curl could not be installed"; exit 1; }
 fi
-
-# Checks does yay exist
-command -v yay >/dev/null || { echo "yay needed"; exit 1; }
 
 # Checks if zapret and dnscrypt are already installed
 
@@ -25,14 +22,35 @@ if [ -d "/opt/zapret" ]; then
     echo "zapret is already installed."
 else
     echo "zapret is not installed. Installing..."
-    yay -S --noconfirm zapret-git
+    ZAPRET_VER=$(curl -fsSL https://api.github.com/repos/bol-van/zapret/releases/latest \
+      | awk -F'"' '/"tag_name"/ {print $4}')
+    [ -n "$ZAPRET_VER" ] || { echo "Failed to determine zapret version"; exit 1; }
+
+    curl -fL "https://github.com/bol-van/zapret/releases/download/${ZAPRET_VER}/zapret-${ZAPRET_VER}.tar.gz" \
+      -o /tmp/zapret.tar.gz
+
+    tar -xzf /tmp/zapret.tar.gz -C /tmp/
+    cd /tmp/zapret-${ZAPRET_VER}
+    printf "Y\n\n\n\n\n\nY\n\n\n\n\n" | sudo ./install_easy.sh
 fi
 
-if [ -d "/etc/dnscrypt-proxy" ]; then
+if [ -d "/opt/dnscrypt-proxy" ]; then
     echo "dnscrypt-proxy is already installed."
 else
     echo "dnscrypt-proxy is not installed. Installing..."
-    yay -S --noconfirm dnscrypt-proxy
+    DNSCRYPT_VER=$(curl -fsSL https://api.github.com/repos/DNSCrypt/dnscrypt-proxy/releases/latest \
+      | awk -F'"' '/"tag_name"/ {print $4}')
+      [ -n "$DNSCRYPT_VER" ] || { echo "Failed to determine dnscypryt-proxy version"; exit 1;}
+    
+    curl -fL "https://github.com/DNSCrypt/dnscrypt-proxy/releases/download/${DNSCRYPT_VER}/dnscrypt-proxy-linux_x86_64-${DNSCRYPT_VER}.tar.gz" \
+     -o /tmp/dnscrypt-proxy.tar.gz
+    
+    tar -xzvf /tmp/dnscrypt-proxy.tar.gz -C /tmp/
+    sudo cp -r /tmp/linux-x86_64 /opt/dnscrypt-proxy
+    cd /opt/dnscrypt-proxy/
+    sudo cp example-dnscrypt-proxy.toml dnscrypt-proxy.toml
+    sudo ./dnscrypt-proxy -service install
+    sudo ./dnscrypt-proxy -service start
 fi
 
 # Checks does chattr exist
@@ -45,7 +63,7 @@ mkdir -p "$CONFIG_PATH"
 # Cheks if user clone the repository or not
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GITHUB_RAW="https://raw.githubusercontent.com/ZaferOrucoglu/zapret-installation/main/arch/"
+GITHUB_RAW="https://raw.githubusercontent.com/ZaferOrucoglu/zapret-installation/main/bazzite/"
 
 if [ -f "$SCRIPT_DIR/config" ]; then
     cp "$SCRIPT_DIR/config" "$CONFIG_PATH/"
@@ -60,7 +78,7 @@ else
 fi
 
 # Copies dnscrypt-proxy and zapret configuration files
-sudo cp "$CONFIG_PATH/dnscrypt-proxy.toml" /etc/dnscrypt-proxy/
+sudo cp "$CONFIG_PATH/dnscrypt-proxy.toml" /opt/dnscrypt-proxy/
 sudo cp "$CONFIG_PATH/config" /opt/zapret/
 
 # Disable systemd-resolved units only if they exist (set -e safe) and enable dnscrypt-proxy
@@ -69,10 +87,10 @@ for unit in \
   systemd-resolved-monitor.socket \
   systemd-resolved.service
 do
-  if systemctl list-unit-files --type=service --type=socket --all | awk '{print $1}' | grep -qx "$unit"; then
+  if systemctl is-enabled "$unit" &>/dev/null || systemctl is-active "$unit" &>/dev/null; then
     sudo systemctl disable --now "$unit"
   else
-    echo "Skipping $unit (not found on this system)"
+    echo "Skipping $unit (not found or already disabled)"
   fi
 done
 sudo systemctl enable --now dnscrypt-proxy
@@ -130,7 +148,7 @@ sudo systemctl enable --now zapret
 # Ask user if they want to remove config files from $CONFIG_PATH
 while true; do
     read -p "Do you want to keep config files on $CONFIG_PATH (false by default, type yes/y or no/n)" remove
-    if [[ "$remove" == "n" || "$remove" == "no" ]]; then
+    if [[ "$remove" == "n" || "$remove" == "no" || -z "$remove" ]]; then
         rm -rf "$CONFIG_PATH"
         break
     elif [[ "$remove" == "y" || "$remove" == "yes" ]]; then

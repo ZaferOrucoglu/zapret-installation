@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Defines configs' path
 CONFIG_PATH="$HOME/zapretconfigs"
