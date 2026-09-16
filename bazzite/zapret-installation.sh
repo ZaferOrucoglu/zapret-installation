@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 # Defines configs' path
 
@@ -13,30 +13,46 @@ sudo -v || { echo "sudo privileges are required"; exit 1; }
 # Checks if curl is installed
 if ! command -v curl >/dev/null; then
     echo "curl not found, installing..."
-    yay -S --noconfirm curl || { echo "curl could not be installed"; exit 1; }
+    brew install curl || { echo "curl could not be installed"; exit 1; }
 fi
 
-# Checks does yay exist
-command -v yay >/dev/null || { echo "yay needed"; exit 1; }
+# Checks if zapret and dnscrypt are already installed (rpm-ostree)
+TERRA_REPO="/etc/yum.repos.d/terra.repo"
 
-# Checks if zapret and dnscrypt are already installed
-
-if [ -d "/opt/zapret" ]; then
-    echo "zapret is already installed."
-else
-    echo "zapret is not installed. Installing..."
-    yay -S --noconfirm zapret-git
+if [ ! -f "$TERRA_REPO" ]; then
+    echo "terra.repo indiriliyor..."
+    curl -fsSL "https://raw.githubusercontent.com/terrapkg/packages/f$(rpm --eval '%{fedora}')/anda/terra/release/terra.repo" \
+        | sudo tee "$TERRA_REPO" > /dev/null
 fi
 
-if [ -d "/etc/dnscrypt-proxy" ]; then
-    echo "dnscrypt-proxy is already installed."
-else
-    echo "dnscrypt-proxy is not installed. Installing..."
-    yay -S --noconfirm dnscrypt-proxy
+if grep -q "^enabled=0" "$TERRA_REPO"; then
+    echo "Terra etkinleştiriliyor..."
+    sudo sed -i 's/^enabled=0/enabled=1/' "$TERRA_REPO"
 fi
 
-# Checks does chattr exist
-command -v chattr >/dev/null || { echo "chattr needed"; exit 1; }
+NEED_REBOOT=0
+MISSING=()
+for pkg in zapret dnscrypt-proxy; do
+    if rpm -q "$pkg" &>/dev/null; then
+        echo "$pkg kurulu."
+    elif rpm-ostree status | grep -qw "$pkg"; then
+        echo "$pkg pending (reboot bekliyor)."
+        NEED_REBOOT=1
+    else
+        MISSING+=("$pkg")
+    fi
+done
+
+if [ ${#MISSING[@]} -gt 0 ]; then
+    echo "Layer'lanıyor: ${MISSING[*]}"
+    sudo rpm-ostree install "${MISSING[@]}"
+    NEED_REBOOT=1
+fi
+
+if [ "$NEED_REBOOT" -eq 1 ]; then
+    echo "Reboot atıp scripti tekrar çalıştır: systemctl reboot"
+    exit 0
+fi
 
 # Creates folder for zapret and dnscrypt's config files.
 
@@ -45,7 +61,7 @@ mkdir -p "$CONFIG_PATH"
 # Cheks if user clone the repository or not
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GITHUB_RAW="https://raw.githubusercontent.com/ZaferOrucoglu/zapret-installation/main/arch/"
+GITHUB_RAW="https://raw.githubusercontent.com/ZaferOrucoglu/zapret-installation/main/bazzite/"
 
 if [ -f "$SCRIPT_DIR/config" ]; then
     cp "$SCRIPT_DIR/config" "$CONFIG_PATH/"
@@ -61,7 +77,7 @@ fi
 
 # Copies dnscrypt-proxy and zapret configuration files
 sudo cp "$CONFIG_PATH/dnscrypt-proxy.toml" /etc/dnscrypt-proxy/
-sudo cp "$CONFIG_PATH/config" /opt/zapret/
+sudo cp "$CONFIG_PATH/config" /etc/zapret/
 
 # Disable systemd-resolved units only if they exist (set -e safe) and enable dnscrypt-proxy
 for unit in \
@@ -69,27 +85,22 @@ for unit in \
   systemd-resolved-monitor.socket \
   systemd-resolved.service
 do
-  if systemctl list-unit-files --type=service --type=socket --all | awk '{print $1}' | grep -qx "$unit"; then
+  if systemctl is-enabled "$unit" &>/dev/null || systemctl is-active "$unit" &>/dev/null; then
     sudo systemctl disable --now "$unit"
   else
-    echo "Skipping $unit (not found on this system)"
+    echo "Skipping $unit (not found or already disabled)"
   fi
 done
 sudo systemctl enable --now dnscrypt-proxy
 
 # Setting up dnscrypt-proxy as a DNS resolver
-sudo chattr -i /etc/resolv.conf 2>/dev/null || true
+sudo rm -f /etc/resolv.conf
 sudo install -d -m 755 /etc/NetworkManager/conf.d
 printf "[main]\ndns=none\n" | sudo tee /etc/NetworkManager/conf.d/dns.conf >/dev/null
 echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf >/dev/null
-sudo chattr +i /etc/resolv.conf # protects resolv.conf against NetworkManager
 
 sudo systemctl restart dnscrypt-proxy
 sudo systemctl restart NetworkManager
-
-echo "the file /etc/resolv.conf will be protected against NetworkManager!"
-echo "if you want to make /etc/resolv.conf writable again, run:"
-echo "sudo chattr -i /etc/resolv.conf"
 
 # Setting the blacklist of zapret and enable it
 echo "Do you want to add websites to the Zapret exclude list?"
@@ -98,7 +109,7 @@ while true; do
     read -p "Enter 'y/yes' or 'n/no': " answer
     if [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]]; then
         # Run initial setup once
-        sudo bash /opt/zapret/ipset/get_exclude.sh
+        sudo bash /usr/share/zapret/ipset/get_exclude.sh
 
         # Let user add websites until they type c or cancel
         while true; do
@@ -110,7 +121,7 @@ while true; do
                 echo "Empty input. Please enter a website or 'c'/'cancel' to finish."
                 continue
             else
-                echo "$website" | sudo tee -a /opt/zapret/ipset/zapret-hosts-user-exclude.txt > /dev/null
+                echo "$website" | sudo tee -a /usr/share/zapret/ipset/zapret-hosts-user-exclude.txt > /dev/null
                 echo "Added!"
             fi
         done
@@ -130,7 +141,7 @@ sudo systemctl enable --now zapret
 # Ask user if they want to remove config files from $CONFIG_PATH
 while true; do
     read -p "Do you want to keep config files on $CONFIG_PATH (false by default, type yes/y or no/n)" remove
-    if [[ "$remove" == "n" || "$remove" == "no" ]]; then
+    if [[ "$remove" == "n" || "$remove" == "no" || -z "$remove" ]]; then
         rm -rf "$CONFIG_PATH"
         break
     elif [[ "$remove" == "y" || "$remove" == "yes" ]]; then
