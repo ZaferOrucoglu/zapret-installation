@@ -17,6 +17,7 @@ It automates common setup steps so you don't need to do everything manually.
 - Arch-based distros (Manjaro, EndeavourOS, etc.)
 - Debian / Debian-based distros (Ubuntu, Linux Mint, etc.)
 - Fedora Linux
+- Bazzite Linux
 
 ## What the script handles
 
@@ -64,6 +65,12 @@ It automates common setup steps so you don't need to do everything manually.
 
 > Fedora uses SELinux, so `chattr +i` is intentionally not applied to `/etc/resolv.conf` to avoid conflicts.
 
+### Bazzite OS 
+- Bazzite OS
+- `sudo` privileges
+- Internet access
+- NetworkManager
+- 
 ## Installation
 
 1. Clone the repository:
@@ -92,7 +99,11 @@ chmod +x debian/zapret-installation.sh
 chmod +x fedora/zapret-installation.sh
 ./fedora/zapret-installation.sh
 ```
-
+**Bazzite OS**
+```bash
+chmod +x bazzite/zapret-installation.sh
+./bazzite/zapret-installation.sh
+```
 3. Follow prompts to:
    - Continue installation flow
    - Add domains to Zapret exclude list (optional)
@@ -121,6 +132,13 @@ chmod +x fedora/zapret-installation.sh
 - DNSCrypt config target: `/etc/dnscrypt-proxy/dnscrypt-proxy.toml`
 - Zapret exclude list: `/usr/share/zapret/ipset/zapret-hosts-user-exclude.txt`
 
+# Bazzite OS
+
+- Script: `bazzite/zapret-installation.sh`
+- Zapret config target: `/etc/zapret/config`
+- DNSCrypt config target: `/etc/dnscrypt-proxy/dnscrypt-proxy.toml`
+- Zapret exclude list: `/usr/share/zapret/ipset/zapret-hosts-user-exclude.txt`
+
 ### All distributions
 
 - Temporary config dir: `$HOME/zapretconfigs`
@@ -135,7 +153,7 @@ sudo nano /etc/dnscrypt-proxy/dnscrypt-proxy.toml
 sudo systemctl restart dnscrypt-proxy
 ```
 
-**Fedora:**
+**Fedora / Bazzite OS:**
 ```bash
 sudo nano /etc/dnscrypt-proxy/dnscrypt-proxy.toml
 sudo systemctl restart dnscrypt-proxy
@@ -149,7 +167,7 @@ echo "example.com" | sudo tee -a /opt/zapret/ipset/zapret-hosts-user-exclude.txt
 sudo systemctl restart zapret
 ```
 
-**Fedora:**
+**Fedora / Bazzite OS:**
 ```bash
 echo "example.com" | sudo tee -a /etc/zapret/ipset/zapret-hosts-user-exclude.txt
 sudo systemctl restart zapret
